@@ -1,0 +1,46 @@
+name: Test & Deploy
+
+on:
+  pull_request:
+    branches: [master]
+  release:
+    types: [published]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@master
+      - run: npm i
+      - run: npm test
+
+  publish:
+    if: ${{ github.event_name == 'release' }}
+    needs:
+      - test
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@master
+      - run: npm i -g @cloudflare/wrangler@beta
+      - run: npm i
+      - run: npm run build
+
+      - run: wrangler publish -c ./wrangler.toml
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+
+      - name: Log to LogSnag
+        uses: jsmrcaga/action-logsnag@v0.0.2
+        with:
+          token: ${{ secrets.LOGSNAG_TOKEN }}
+          project: feedback
+          channel: deploy
+          event: Published a new feedback version ${{ github.event.release.tag_name }}!
+          description: Published a new version to workers
+          icon: 💬
+          notify: true
